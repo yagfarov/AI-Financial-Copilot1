@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Financial Copilot — B2B</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="/static/js/charts.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+
+<div class="app-layout" x-data="financialApp">
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" x-show="loading" x-transition.opacity style="display:none;">
+    <div class="spinner"></div>
+    <p class="loading-text" x-text="loadingText">Загрузка...</p>
+  </div>
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="lg1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="8" fill="url(#lg1)"/>
+          <path d="M7 22L12 16L16 19L21 12L25 15" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="25" cy="15" r="2" fill="white"/>
+        </svg>
+      </div>
+      <div>
+        <div class="sidebar-logo-text">Copilot</div>
+        <div class="sidebar-logo-sub">Business AI</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-label">Навигация</div>
+
+      <button class="nav-item" :class="{ active: view === 'dashboard' }" @click="view = 'dashboard'">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="7" height="7" rx="2" fill="currentColor" opacity=".85"/><rect x="10" y="1" width="7" height="7" rx="2" fill="currentColor" opacity=".5"/><rect x="1" y="10" width="7" height="7" rx="2" fill="currentColor" opacity=".5"/><rect x="10" y="10" width="7" height="7" rx="2" fill="currentColor" opacity=".85"/></svg>
+        </span>
+        Dashboard
+      </button>
+
+      <button class="nav-item" :class="{ active: view === 'analytics' }" @click="view = 'analytics'">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 14L7 8L10.5 11.5L16 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        Аналитика
+      </button>
+
+      <button class="nav-item" :class="{ active: view === 'agent' }" @click="view = 'agent'; loadAgentInfo()">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M6 9.5L8 11.5L12 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        AI Агент
+      </button>
+    </nav>
+
+    <!-- Month selector -->
+    <div class="sidebar-section" x-show="availableMonths.length > 0">
+      <div class="nav-label">Период</div>
+      <select class="month-selector" x-model="selectedMonth" @change="changeMonth($event.target.value)">
+        <template x-for="m in availableMonths" :key="m">
+          <option :value="m" x-text="m"></option>
+        </template>
+      </select>
+    </div>
+
+    <!-- Upload -->
+    <div class="sidebar-bottom">
+      <button class="btn btn-primary btn-block" @click="triggerUpload()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="margin-right:6px">
+          <path d="M8 2v9M4 6l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Загрузить CSV
+      </button>
+      <input type="file" id="csv-file-input" accept=".csv" multiple @change="uploadCSV($event)" style="display:none" />
+
+      <button class="theme-toggle" @click="toggleTheme()" :title="darkMode ? 'Светлая тема' : 'Тёмная тема'">
+        <template x-if="darkMode">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </template>
+        <template x-if="!darkMode">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 10.07A6 6 0 015.93 2.5 6 6 0 1013.5 10.07z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </template>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="main-content">
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div x-show="view === 'dashboard'" x-transition.opacity>
+
+      <!-- Empty state -->
+      <template x-if="!data">
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><rect x="6" y="14" width="36" height="24" rx="4" stroke="currentColor" stroke-width="2"/><path d="M6 22h36" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="30" r="2" fill="currentColor"/><circle cx="24" cy="30" r="2" fill="currentColor"/></svg>
+          </div>
+          <h2>Загрузите данные</h2>
+          <p>Нажмите «Загрузить CSV» для анализа финансов вашего бизнеса</p>
+        </div>
+      </template>
+
+      <template x-if="data">
+        <div>
+          <!-- KPI Grid -->
+          <div class="kpi-grid">
+            <!-- Revenue -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-icon kpi-icon-blue">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2v16M6 6l4-4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="kpi-label">Выручка</span>
+              </div>
+              <div class="kpi-value" x-text="formatMoney(data.total_income)"></div>
+              <template x-if="momDelta('income')">
+                <div class="kpi-delta" :class="momDelta('income').positive ? 'delta-positive' : 'delta-negative'" x-text="momDelta('income').text"></div>
+              </template>
+            </div>
+
+            <!-- Expenses -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-icon kpi-icon-red">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 18V2M6 14l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="kpi-label">Расходы</span>
+              </div>
+              <div class="kpi-value" x-text="formatMoney(data.total_expenses)"></div>
+              <template x-if="momDelta('expenses')">
+                <div class="kpi-delta" :class="momDelta('expenses', true).positive ? 'delta-positive' : 'delta-negative'" x-text="momDelta('expenses', true).text"></div>
+              </template>
+            </div>
+
+            <!-- Profit -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-icon" :class="data.profit >= 0 ? 'kpi-icon-green' : 'kpi-icon-red'">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 15l4-5 3.5 3L14 7l4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="kpi-label">Прибыль</span>
+              </div>
+              <div class="kpi-value" :class="data.profit < 0 ? 'text-red' : ''" x-text="formatMoney(data.profit)"></div>
+              <template x-if="momDelta('profit')">
+                <div class="kpi-delta" :class="momDelta('profit').positive ? 'delta-positive' : 'delta-negative'" x-text="momDelta('profit').text"></div>
+              </template>
+            </div>
+
+            <!-- Health Score -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-icon" :class="'kpi-icon-' + healthScoreColor">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 18s-7-4.35-7-9.65C3 5.11 5.69 2 9.5 2a4.28 4.28 0 01.5.03c.17.01.33.04.5.07A4.07 4.07 0 0117 8.35C17 13.65 10 18 10 18z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="kpi-label">Health Score</span>
+              </div>
+              <div class="kpi-value">
+                <span x-text="data.health_score?.total ?? '—'"></span>
+                <span class="kpi-unit">/100</span>
+              </div>
+              <div class="kpi-delta" :class="'delta-' + healthScoreColor" x-text="healthScoreLabel"></div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="charts-grid">
+            <div class="card chart-container">
+              <div class="card-header">
+                <h3>Доходы vs Расходы</h3>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="monthlyChart"></canvas>
+              </div>
+            </div>
+
+            <div class="card chart-container">
+              <div class="card-header">
+                <h3>Структура расходов</h3>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="categoryChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Business Metrics Row -->
+          <div class="metrics-grid">
+            <!-- Burn Rate & Runway -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Бизнес-метрики</h3>
+              </div>
+              <div class="metrics-list">
+                <div class="metric-row">
+                  <span class="metric-label">Маржинальность</span>
+                  <span class="metric-value" :class="data.profit_margin >= 0 ? 'text-green' : 'text-red'" x-text="formatPercent(data.profit_margin)"></span>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Burn Rate</span>
+                  <span class="metric-value" x-text="formatMoney(data.burn_rate) + '/мес'"></span>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Runway</span>
+                  <span class="metric-value" x-text="data.runway > 0 ? data.runway + ' мес.' : '—'"></span>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Прогноз расходов</span>
+                  <span class="metric-value" x-text="formatMoney(data.forecast?.predicted_monthly)"></span>
+                </div>
+                <template x-if="forecastInterval">
+                  <div class="metric-row metric-sub">
+                    <span class="metric-label">Доверительный интервал</span>
+                    <span class="metric-value" x-text="forecastInterval.lower + ' — ' + forecastInterval.upper"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Revenue by Channel -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Каналы дохода</h3>
+              </div>
+              <div class="revenue-channels">
+                <template x-for="[channel, amount] in Object.entries(data.revenue_by_channel || {})" :key="channel">
+                  <div class="revenue-channel">
+                    <div class="revenue-channel-header">
+                      <span class="revenue-channel-icon" x-text="getCategoryIcon(channel)"></span>
+                      <span class="revenue-channel-name" x-text="channel"></span>
+                      <span class="revenue-channel-amount" x-text="formatMoney(amount)"></span>
+                    </div>
+                    <div class="revenue-bar-bg">
+                      <div class="revenue-bar-fill" :style="`width: ${Math.min(100, (amount / data.total_income) * 100)}%`"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Health Score Details -->
+          <div class="card" x-show="data.health_score">
+            <div class="card-header">
+              <h3>Health Score — детализация</h3>
+              <div class="health-score-badge" :class="'badge-' + healthScoreColor">
+                <span x-text="data.health_score?.total"></span>/100
+              </div>
+            </div>
+            <div class="health-components">
+              <template x-for="(comp, key) in (data.health_score?.components || {})" :key="key">
+                <div class="health-component">
+                  <div class="health-comp-header">
+                    <span x-text="comp.label"></span>
+                    <span class="health-comp-score" :class="'score-' + getScoreColor(comp.score)" x-text="comp.score + '/100'"></span>
+                  </div>
+                  <div class="health-bar-bg">
+                    <div class="health-bar-fill" :class="'bar-' + getScoreColor(comp.score)" :style="`width: ${comp.score}%`"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ==================== ANALYTICS ==================== -->
+    <div x-show="view === 'analytics'" x-transition.opacity>
+      <template x-if="!data">
+        <div class="empty-state">
+          <h2>Нет данных</h2>
+          <p>Загрузите CSV для просмотра аналитики</p>
+        </div>
+      </template>
+
+      <template x-if="data">
+        <div>
+          <!-- Revenue Chart -->
+          <div class="card chart-container-wide">
+            <div class="card-header">
+              <h3>Доходы по каналам</h3>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="revenueChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Expense Breakdown -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Расходы по категориям</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Категория</th>
+                    <th>Сумма</th>
+                    <th>Доля</th>
+                    <th>MoM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="[cat, amount] in Object.entries(data.by_category || {}).sort((a,b) => b[1] - a[1])" :key="cat">
+                    <tr>
+                      <td>
+                        <span class="category-cell">
+                          <span x-text="getCategoryIcon(cat)"></span>
+                          <span x-text="cat"></span>
+                        </span>
+                      </td>
+                      <td x-text="formatMoney(amount)"></td>
+                      <td x-text="(data.by_category_pct?.[cat] || 0) + '%'"></td>
+                      <td>
+                        <span class="mom-badge"
+                              :class="(data.mom_change?.[cat] || 0) > 0 ? 'mom-up' : (data.mom_change?.[cat] || 0) < 0 ? 'mom-down' : 'mom-flat'"
+                              x-text="((data.mom_change?.[cat] || 0) > 0 ? '+' : '') + (data.mom_change?.[cat] || 0) + '%'">
+                        </span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Top Transactions -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Крупнейшие расходы</h3>
+            </div>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Описание</th>
+                    <th>Сумма</th>
+                    <th>Категория</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="tx in topTransactions" :key="tx.date + tx.description">
+                    <tr>
+                      <td x-text="tx.date"></td>
+                      <td x-text="tx.description"></td>
+                      <td x-text="formatMoney(tx.abs_amount)"></td>
+                      <td>
+                        <span class="badge" x-text="tx.category"></span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Anomalies -->
+          <div class="card" x-show="anomaliesList.length > 0">
+            <div class="card-header">
+              <h3>Аномалии</h3>
+              <span class="badge badge-warning" x-text="anomaliesList.length + ' обнаружено'"></span>
+            </div>
+            <div class="anomalies-list">
+              <template x-for="a in anomaliesList" :key="a.date + a.description">
+                <div class="anomaly-item">
+                  <div class="anomaly-info">
+                    <span class="anomaly-desc" x-text="a.description"></span>
+                    <span class="anomaly-meta" x-text="a.date + ' · ' + a.category"></span>
+                  </div>
+                  <div class="anomaly-amount" x-text="formatMoney(a.abs_amount)"></div>
+                  <div class="anomaly-reason" x-text="a.anomaly_reason"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- AI Insights -->
+          <div class="card">
+            <div class="card-header">
+              <h3>AI Инсайты</h3>
+              <button class="btn btn-ghost" @click="generateInsights()" :disabled="insightsLoading">
+                <template x-if="insightsLoading">
+                  <span class="btn-spinner"></span>
+                </template>
+                <span x-text="insightsLoading ? 'Генерация...' : insights.length > 0 ? 'Обновить' : 'Сгенерировать'"></span>
+              </button>
+            </div>
+            <div class="insights-grid" x-show="insights.length > 0">
+              <template x-for="(insight, i) in insights" :key="i">
+                <div class="insight-card" :class="'insight-' + insight.type">
+                  <div class="insight-header">
+                    <span class="insight-icon" x-text="getInsightIcon(insight.type)"></span>
+                    <span class="insight-type" x-text="getInsightType(insight.type)"></span>
+                  </div>
+                  <div class="insight-title" x-text="insight.title"></div>
+                  <div class="insight-desc" x-text="insight.description"></div>
+                  <div class="insight-savings" x-show="insight.savings && insight.savings !== '0'">
+                    Потенциальная экономия: <strong x-text="formatMoney(parseInt(insight.savings))"></strong>/мес
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="insights-empty" x-show="insights.length === 0 && !insightsLoading">
+              <p>Нажмите «Сгенерировать» для получения AI-инсайтов по вашему бизнесу</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ==================== AI AGENT ==================== -->
+    <div x-show="view === 'agent'" x-transition.opacity>
+      <div class="agent-page">
+        <!-- Agent Placeholder -->
+        <div class="agent-placeholder">
+          <div class="agent-placeholder-icon">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+              <circle cx="32" cy="32" r="18" stroke="currentColor" stroke-width="2" opacity="0.5"/>
+              <circle cx="32" cy="32" r="8" fill="currentColor" opacity="0.7"/>
+            </svg>
+          </div>
+          <h2>AI Финансовый Агент</h2>
+          <p x-text="agentInfo?.message || 'Загрузка...'"></p>
+
+          <div class="agent-capabilities" x-show="agentInfo?.capabilities">
+            <div class="nav-label">Планируемые возможности</div>
+            <template x-for="cap in (agentInfo?.capabilities || [])" :key="cap">
+              <div class="agent-capability">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" opacity="0.5"/><path d="M5.5 8.5L7 10L10.5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span x-text="cap"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Chat (works with GigaChat if available) -->
+        <div class="card chat-container">
+          <div class="card-header">
+            <h3>Чат с ассистентом</h3>
+            <span class="badge badge-info">GigaChat</span>
+          </div>
+
+          <div class="chat-messages" id="chat-messages-container">
+            <template x-if="chatMessages.length === 0">
+              <div class="chat-empty">
+                <p>Задайте вопрос о финансах вашего бизнеса</p>
+                <div class="chat-suggestions">
+                  <button class="chat-suggestion" @click="useSuggestion('Как оптимизировать расходы?')">Как оптимизировать расходы?</button>
+                  <button class="chat-suggestion" @click="useSuggestion('Какой канал продаж самый эффективный?')">Лучший канал продаж?</button>
+                  <button class="chat-suggestion" @click="useSuggestion('Что можно улучшить в следующем месяце?')">Что улучшить?</button>
+                </div>
+              </div>
+            </template>
+
+            <template x-for="(msg, i) in chatMessages" :key="i">
+              <div class="chat-message" :class="'chat-' + msg.role">
+                <div class="chat-bubble">
+                  <div class="chat-text" x-text="msg.text"></div>
+                  <div class="chat-time" x-text="msg.time"></div>
+                </div>
+              </div>
+            </template>
+
+            <div class="chat-typing" x-show="chatLoading">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+
+          <div class="chat-input-wrapper">
+            <textarea class="chat-input" id="chat-textarea"
+                      x-model="chatInput"
+                      @keydown="handleChatKeydown($event)"
+                      placeholder="Введите вопрос..."
+                      rows="1"></textarea>
+            <button class="chat-send" @click="sendChat()" :disabled="chatLoading || !chatInput.trim()">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 9l14-7-7 14V9H2z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>
